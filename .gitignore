@@ -1,3 +1,6 @@
 venv/
 *.yml
 *.yaml
+__pycache__
+*.egg*
+dist/

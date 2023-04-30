@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-export OS_CLOUD=catalystcloud
-rm -rf clouds.yaml
-cp clouds.yml clouds.yaml
-./venv/bin/python openstack-profile-manager/main.py
+rm -rf clouds.yml
+cp clouds_.yml clouds.yml
+./venv/bin/python -m os_mfa --os-cloud=catalystcloud
