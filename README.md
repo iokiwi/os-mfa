@@ -1,181 +1,212 @@
-# OS-MFA: Easily manage one or more openstack credentials for command line and programmatic access
+# os-mfa
 
-os-mfa makes using MFA with cli/programmatic authentication with OpenStack easier and more secure by combining the convenience of durable authentication session persistence with better credential management hygiene though automatically managing the lifecycle of authentication tokens in the `clouds.yaml` file.
+Convenient and secure OpenStack authentication and credential management inspired by [broamski/aws-mfa](broamski/aws-mfa)
 
-Inspired by https://github.com/broamski/aws-mfa
+## What problem does os-mfa solve?
 
-Note: This is currently a proof of concept/Work in progress. Pull requests welcome.
+First some quick background. OpenStack provides two main methods of setting credentials for programmatic authentication:
 
-## In this README
+**A) [Environment variables set via 'openrc.sh' files](https://docs.openstack.org/newton/user-guide/common/cli-set-environment-variables-using-openstack-rc.html)**
 
-* [The Problems this project aims to Address](#the-problems-this-project-aims-to-address)
-* [Installation](#installation)
-  * [Linux](#linux)
-  * [macOS](#macos)
-  * [Windows](#windows)
-* [Quick Start](#quick-start)
-* [How it Works](#how-it-works)
+* 🛡️ Avoids storing passwords in plaintext on disk 👍<br>
+* 🤦 Session credentials are lost if you close or restart your terminal window 👎<br>
+* 🔒 Sessions can't be shared/accessed across multiple terminal sessions 👎<br>
+* 💔 Not compatible with windows clients 👎<br>
 
-## The Problem(s) this project aims to address
+**B) [clouds.yaml configuration files](https://docs.openstack.org/python-openstackclient/latest/configuration/index.html#configuration-files)**
 
-Openstack provides several methods for configuring authentication for its SDK's and clients including CLI arguments, environment variables and a [clouds.yaml](https://docs.openstack.org/python-openstackclient/latest/configuration/index.html#configuration-files) file.
+ * 🌏 Are accessible in every terminal session 👍
+ * 💪 Are durable to restarts/shutdowns 👍
+ * 💗 Compatible and consistent user experience across platforms 👍
+ * 🙈 Encourages credentials to be stored in plain text 👎
+ * ⌛ Tokens expire after 12 hours and need to be manually refreshed and updated in clouds.yaml 👎
 
-### 1. Using openrc files/environment variables is not durable across terminal sessions
+As we can see both have advantages and disadvantages. But what if we could have the best parts of both options?
 
-For some reason the preferred / default authentication method users are steered towards is using openrc files - non-trivial bash files which set environment variables in your shell session.
+**🌈 os-mfa 🦄 leverages the convenience and durability of using `clouds.yaml` and automates the secure management of credentials and tokens**
 
-Using environment variables to persist your authentication session is not durable across terminal instances or restarts. If you open a new terminal for any reason you will need to re authenticate there with your username, password and MFA token. This becomes very tiresome very quickly.
+ * 🛡️ Avoids storing passwords in plaintext on disk 👍
+ * 🌏 Session credentials are accessible in all terminals sessions 👍
+ * 💪 Are durable to restarts/shutdowns 👍
+ * 🔀 Trivially switch between multiple authenticated OpenStack sessions 👍
+ * 🤝 Ensures native compatibility with the OpenStack ecosystem 👍
+ * 💗 Compatible and consistent user experience across platforms 👍
 
-### 2. Using clouds.yaml does not work nicely with token authentication or MFA
+## Quick start
 
-Openstack does provide a better, more persisted, authentication mechanism by way of the [clouds.yaml](https://docs.openstack.org/python-openstackclient/latest/configuration/index.html#configuration-files) configuration file.
+Install os-mfa
 
-Switching sessions is then simplified by referencing the cloud config name from `clouds.yaml
-  * Using an cli argument (`--os-cloud=<name>`) 
-  * Setting the `OS_CLOUD` environment variable inline (E.g `OS_CLOUD=<name> <command>`)
-  * Exporting `OS_CLOUD` environnement variable to used by all future commands in that session (`export OS_CLOUD=<name>`)
-
-However using `clouds.yaml` files also has some drawbacks.
-
-* It discourages token based authorization as tokens expire after 12 hours requiring users to constantly manually update clouds.yaml with new tokens.
-* It discourages the use of MFA which requires token based authorization.
-* It encourages storing usernames and passwords in clear text in a file on your machine as this is less friction than using token based authorization.
-
-## Best of both worlds: Convenience + Hygiene with os-mfa
-
-This openstack MFA helper combines the convenience of durable authentication session persistence with better security hygiene by utilizing `clouds.yaml` and automatically managing the lifecycle of tokens in the config file allowing users to keep passwords out of their `clouds.yaml` file.
-
-## Quick Start
-
-1. Obtain a `clouds.yaml` file from the cloud dashboard. For catalyst cloud:
-    * Go to https://dashboard.cloud.catalyst.net.nz/project/api_access/
-    * Hover over `Download OpenStack RC File` on the top right
-    * Click the `OpenStack clouds.yml file`
-
-2. Place your `clouds.yaml` file in one of the following locations detailed in the [upstream docs](https://docs.openstack.org/python-openstackclient/latest/cli/man/openstack.html#config-files)
-    * `./clouds.yaml`
-    * `~/config/openstack/clouds.yaml`
-    * `/etc/openstack/clouds.yaml`
-
-3. E.g. Assign and export your config name as the OS_CLOUD environment variable
-
-    ```bash
-    $ export OS_CLOUD=catalystcloud
-    ```
-
-4. Authenticate using `os-mfa`
-
-    ```bash
-    $ os-mfa
-
-    Authenticating 'john.smith@example.com' in project 'john-smith'
-    Enter Password:
-    TOTP (press enter to skip): 654321
-    ```
-
-5. Happy OpenStacking
-    ```bash
-    $ openstack server list
-    +---------------+---------------+--------+---------------+---------------+---------+
-    | ID            | Name          | Status | Networks      | Image         | Flavor  |
-    +---------------+---------------+--------+---------------+---------------+---------+
-    | a5d3814a-4f6e | proxy-server- | ACTIVE | proxy-        | N/A (booted   | c1.c1r1 |
-    | -493f-aa03-ac | yohjuqh5vzhm  |        | network-lju2p | from volume)  |         |
-    | 13fdb9a860    |               |        | kokjtsh=10.0. |               |         |
-    |               |               |        | 0.4, 103.***. |               |         |
-    |               |               |        | ***.***       |               |         |
-    +---------------+---------------+--------+---------------+---------------+---------+
-    ```
-## How it works
-
-With os-mfa we introduce the concept of a "Long Term" configuration, distinguished by a suffix of `-long-term`, which is a copy of the original config that does not contain any secretes such as passwords or tokens.
-
-os-mfa will assume ownership and manage the lifecycle of the original config, which we will refer to as the "Ephemeral" config going forward.
-
-The Long Term and Ephemeral configs are described as follows.
-
-|Long Term|Ephemeral|
-|---|---|
-|Managed by you, the user|Managed by os-mfa|
-|Contains project information. Does not contain any secrets|Contains project information + temporary authentication token|
-|Used as basis to create an Ephemeral config but is otherwise ignored|Used by SDK's and clients for authentication|
-|Has a suffix of `-long-term`|Does not have a suffix|
-|Manual changes will be passed on to the Ephemeral config|Manual changes will be overwritten|
-
-The "Long Term" and "Ephemeral" configs coexist in the same clouds.yaml file. For example: Here's an annotated example of a `clouds.yaml` file with a Long Term and Ephemeral config.
-
-```yaml
-clouds:
-    # Managed by os-mfa, Ephemeral.
-    catalystcloud:
-        auth_type: token # Managed by os-mfa
-        auth:
-            auth_url: https://api.nz-hlz-1.catalystcloud.io:5000 # Inherited
-            project_id: 33735662374f4b7a9621631f2e7e5e15         # Inherited
-            project_name: john-smith    # Inherited
-            token: gAAAAABjrN[...]e6vqt # Ephemeral, Managed by os-mfa
-        region_name: nz-hlz-1           # Inherited
-        interface: public               # Inherited
-        identity_api_version: 3         # Inherited
-
-    # Managed by you - the user.
-    catalystcloud-long-term:
-        auth:
-            auth_url: https://api.nz-hlz-1.catalystcloud.io:5000
-            username: john.smith@example.com
-            project_id: 33735662374f4b7a9621631f2e7e5e15
-            project_name: john-smith
-            user_domain_name: Default
-        region_name: nz-hlz-1
-        interface: public
-        identity_api_version: 3
+```bash
+pip install -U os-mfa
 ```
 
-Just the same as openstack sdk's and clients, os-mfa finds your cloud.yaml file by checking the following locations in order:
+Download `clouds.yaml` file from your OpenStack dashboard. For example
 
-  * Current directory (`./clouds.yaml`)
-  * `~/config/openstack/clouds.yaml`
+ 1. Click API Access https://dashboard.catalystcloud.nz/project/api_access/
+ 2. Click **Download OpenStack RC File** on the top right
+ 3. Select **OpenStack clouds.yaml File** from the drop down
+
+
+
+Place the file in your current working directory (`.`) or an alternate [location described by the docs](https://docs.openstack.org/python-openstackclient/latest/configuration/index.html#clouds-yaml)
+
+Linux
+  * `~/.config/openstack/clouds.yaml`
   * `/etc/openstack/clouds.yaml`
 
-We specify which config we are working with by setting the `OS_CLOUD` environment variable.
+Windows
+  * `C:\Users\you\.config\openstack\clouds.yaml`
+  * `C:\ProgramData\openstack\clouds.yaml`
+
+E.g.
+
+```yaml
+# /home/john/clouds.yaml
+clouds:
+  catalystcloud:
+    auth:
+      auth_url: https://api.nz-hlz-1.catalystcloud.io:5000
+      project_id: 33735662374f4b7a9621631f2e7e5e15
+      project_name: acme-incorporated
+      user_domain_name: Default
+      username: john.smith@acme.com
+      password: 1ns3curE123!
+    identity_api_version: 3
+    interface: public
+    region_name: nz-hlz-1
+```
+
+Run os-mfa
+
+```bash
+$ export OS_CLOUD=catalystcloud
+```
+```bash
+$ os-mfa
+Authenticating 'john.smith@example.com' in project 'john-smith'
+Enter Password:
+MFA Code (Press enter to skip): 654321
+Getting token...
+```
+
+```
+$ openstack network list
++--------------------------------------+------------+--------------------------------------------+
+| ID                                   | Name       | Subnets                                    |
++--------------------------------------+------------+--------------------------------------------+
+| f10ad6de-a26d-4c29-8c64-2a7418d47f8f | public-net | 5063aab1-aa08-48b2-b81d-730ac732fc51,      |
+|                                      |            | 8a7fe804-7fbe-43d0-aa1d-cfa03034ef22,      |
+|                                      |            | a1549e09-4176-4322-860c-cadc68608b48       |
++--------------------------------------+------------+--------------------------------------------+
+```
+
+If you close/restart or start a new terminal window, resume your openstack session simply by exporting `$OS_CLOUD` again.
 
 ```bash
 export OS_CLOUD=catalystcloud
 ```
 
-When we run os-mfa, it will check our `clouds.yaml` file for a long term profile called `<OS_CLOUD>-long-term`. E.g. `catalystcloud-long-term`.
+## What happened when we ran os-mfa?
 
-If a long term config does not exist, os-mfa will try to create a default long term config for us based on the original config and sanitized of sensitive values.
+os-mfa created a *"long-term"* configuration without any passwords or secrets.
 
-Once os-mfa finds (or creates) the Long Term Config os-mfa will then:
+ * *"long-term"* configurations are distinguished with a suffix of `-long-term`
+ * We do not use the long term configs with the openstack client tools.
+ 
+The long term config used as a foundation for authentication by os-mfa which then:
 
- 1. Read the project information from the long term config `<OS_CLOUD>-long-term`
- 2. Prompt for your secret credentials (password, MFA code)
- 3. Swap your credentials (username, password and MFA code) for an authorized token
- 4. Create/update a token based Ephemeral configuration in your `clouds.yaml` named `<OS_CLOUD>`
+1) Prompts the user for their password and totp token
 
-## Run tests
+2) Swaps the password and totp for an openstack auth token
+
+3) Updates the original configuration to use the new token for authentication
+
+The resulting clouds.yaml should look like this
+
+```yaml
+# /home/john/clouds.yaml
+clouds:
+  catalystcloud:
+    auth:
+      auth_url: https://api.nz-hlz-1.catalystcloud.io:5000
+      project_id: 33735662374f4b7a9621631f2e7e5e15
+      project_name: acme-incorporated
+      token: gAAAAABkTkGx4Dah37lkiGTSEe3-r[...]9dQCVTBRsKjg6NFIYgMYRdAk7TTvIPOaaOE
+    identity_api_version: 3
+    interface: public
+    region_name: nz-hlz-1
+  catalystcloud-long-term:
+    auth:
+      auth_url: https://api.nz-hlz-1.catalystcloud.io:5000
+      project_id: 33735662374f4b7a9621631f2e7e5e15
+      project_name: acme-incorporated
+      user_domain_name: Default
+      username: john.smith@acme.com
+    identity_api_version: 3
+    interface: public
+    region_name: nz-hlz-1
+
+```
+
+## Going further
+
+
+### Switching between multiple cloud accounts and sessions
+
+```yaml
+clouds:
+  project1-long-term:
+    region: nz-hlz-1
+    auth:
+        project_name: project1
+        username: john.smith@acme.com
+        # ...
+  project2-long-term:
+    region: nz-por-1
+    auth:
+        project_name: project2
+        username: john.smith@acme.com
+        # ...
+```
+
+After running os-mfa once for each project you can switch between them 
+
+```
+OS_CLOUD=project1
+OS_CLOUD=project2
+```
+
+## Contributing
+
+Nothing special to report, just raise a PR
+
+### Run tests
 
 ```
 python -m unittest discover
 ```
 
-## Building Package
+### Building Package
 
 Source: https://realpython.com/pypi-publish-python-package/
 
 ```
-python -m pip install pip-tools
+python -m pip install pip-tools build twine bumpver
 pip-compile pyproject.toml
+python -m build
+twine check dist/*
+twine upload -r testpypi dist/*
+twine upload dist/*
 ```
 
-## TODO:
+## TODO
 
- * [/] TBH I am probably going to port this back to python
- * [/] Alert if no clouds.yaml found
- * [/] Better error message if OS_CLOUD not set
- * Non-interactive mode
- * Sanitize long-term config better
- * Store and check expiry of token
-    * Only reauthenticate if token is not valid
-    * -f, --force cli option to force authentication
+ * ☑️ TBH I am probably going to port this back to python
+ * ☑️ Alert if no clouds.yaml found
+ * ☑️ Better error message if OS_CLOUD not set
+ * ☑️ CI/CD
+ * 🟦 Non-interactive mode
+ * 🟦 Sanitize long-term config better
+ * 🟦 Store and check expiry of token
+    * 🟦 Only reauthenticate if token is not valid
+    * 🟦 -f, --force cli option to force authentication

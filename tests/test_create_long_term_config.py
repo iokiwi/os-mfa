@@ -2,8 +2,8 @@ import unittest
 
 from os_mfa.config_helpers import create_long_term_config
 
-class TestCreateLongTermConfig(unittest.TestCase):
 
+class TestCreateLongTermConfig(unittest.TestCase):
     def setUp(self):
         self.config = {
             "auth": {
@@ -26,6 +26,7 @@ class TestCreateLongTermConfig(unittest.TestCase):
         self.assertFalse("password" in long_term_config["auth"])
         self.assertFalse("token" in long_term_config["auth"])
         self.assertFalse("auth_type" in long_term_config)
+
 
 if __name__ == "__main__":
     unittest.main()
