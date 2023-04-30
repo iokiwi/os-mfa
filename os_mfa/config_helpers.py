@@ -12,6 +12,8 @@ from getpass import getpass
 
 import requests
 
+PASSWORD = None
+
 
 class ConfigManager:
     def __init__(self, config_path: str):
@@ -101,6 +103,8 @@ def get_token(auth: dict, secret: str) -> str:
 def create_long_term_config(config: dict) -> dict:
     """takes a config and returns a long term config with no secrets"""
 
+    global PASSWORD
+
     config = copy.deepcopy(config)
 
     # username = config["auth"].get("username")
@@ -117,6 +121,7 @@ def create_long_term_config(config: dict) -> dict:
         del config["auth"]["token"]
 
     if "password" in config["auth"]:
+        PASSWORD = config["auth"]["password"]
         del config["auth"]["password"]
 
     return config
@@ -142,14 +147,25 @@ def get_token_config(config: dict) -> dict:
 
     username = config["auth"].get("username")
     if username is None:
-        username = input("Username:").strip()
+        username = input("Username: ").strip()
         # save = input("Would you like to save your username for next time? [y/N]: ").strip()
         # if save == "" or save.lower().startswith("y"):
         #     # Do something
         #     pass
 
-    password = getpass(f"Password for {username}:")
-    totp = input("MFA Temporary Password (Press enter to skip):").strip()
+    print(
+        "Authenticating '{}' in project '{}'".format(
+            username, config["auth"]["project_name"]
+        )
+    )
+
+    # Prompt for password unless we already have it from converting to long-term config
+    if PASSWORD is None:
+        password = getpass(f"Enter Password: ")
+    else:
+        password = PASSWORD
+
+    totp = input("MFA Code (Press enter to skip): ").strip()
     password = password + totp
 
     print("Getting token...")
