@@ -1,6 +1,6 @@
 # os-mfa
 
-Convenient and secure OpenStack authentication and credential management inspired by [broamski/aws-mfa](broamski/aws-mfa)
+Convenient and secure OpenStack authentication and credential management inspired by [broamski/aws-mfa](https://github.com/broamski/aws-mfa)
 
 ## What problem does os-mfa solve?
 
@@ -8,29 +8,29 @@ First some quick background. OpenStack provides two main methods of setting cred
 
 **A) [Environment variables set via 'openrc.sh' files](https://docs.openstack.org/newton/user-guide/common/cli-set-environment-variables-using-openstack-rc.html)**
 
-* 🛡️ Avoids storing passwords in plaintext on disk 👍<br>
-* 🤦 Session credentials are lost if you close or restart your terminal window 👎<br>
-* 🔒 Sessions can't be shared/accessed across multiple terminal sessions 👎<br>
-* 💔 Not compatible with windows clients 👎<br>
+* 🛡️ Avoids storing passwords in plaintext on disk 👍
+* 🤦 Session credentials are lost if you close or restart your terminal window 👎
+* 🔒 Sessions can't be shared/accessed across multiple terminal sessions 👎
+* 💔 Not compatible with windows clients 👎
 
 **B) [clouds.yaml configuration files](https://docs.openstack.org/python-openstackclient/latest/configuration/index.html#configuration-files)**
 
- * 🌏 Are accessible in every terminal session 👍
- * 💪 Are durable to restarts/shutdowns 👍
+ * 💪 Session tokens are durable to terminal restarts/shutdowns 👍
  * 💗 Compatible and consistent user experience across platforms 👍
+ * 🌏 OpenStack sessions are accessible in from any terminal session 👍
  * 🙈 Encourages credentials to be stored in plain text 👎
- * ⌛ Tokens expire after 12 hours and need to be manually refreshed and updated in clouds.yaml 👎
+ * ⌛ Tokens that expire after 12 hours need to be manually refreshed and updated in clouds.yaml 👎
 
 As we can see both have advantages and disadvantages. But what if we could have the best parts of both options?
 
 **🌈 os-mfa 🦄 leverages the convenience and durability of using `clouds.yaml` and automates the secure management of credentials and tokens**
 
  * 🛡️ Avoids storing passwords in plaintext on disk 👍
- * 🌏 Session credentials are accessible in all terminals sessions 👍
- * 💪 Are durable to restarts/shutdowns 👍
- * 🔀 Trivially switch between multiple authenticated OpenStack sessions 👍
- * 🤝 Ensures native compatibility with the OpenStack ecosystem 👍
+ * 💪 Session tokens are durable to terminal restarts/shutdowns 👍
  * 💗 Compatible and consistent user experience across platforms 👍
+ * 🌏 OpenStack sessions are accessible in from any terminal session 👍
+ * 🔀 Trivially switch between multiple authenticated OpenStack sessions 👍
+ * 🤝 Ensured compatibility with the OpenStack ecosystem 👍
 
 ## Quick start
 
@@ -42,11 +42,9 @@ pip install -U os-mfa
 
 Download `clouds.yaml` file from your OpenStack dashboard. For example
 
- 1. Click API Access https://dashboard.catalystcloud.nz/project/api_access/
+ 1. Click **[API Access](https://dashboard.catalystcloud.nz/project/api_access/)** from the top left of the dashboard
  2. Click **Download OpenStack RC File** on the top right
  3. Select **OpenStack clouds.yaml File** from the drop down
-
-
 
 Place the file in your current working directory (`.`) or an alternate [location described by the docs](https://docs.openstack.org/python-openstackclient/latest/configuration/index.html#clouds-yaml)
 
@@ -55,7 +53,7 @@ Linux
   * `/etc/openstack/clouds.yaml`
 
 Windows
-  * `C:\Users\you\.config\openstack\clouds.yaml`
+  * `C:\Users\<username>\.config\openstack\clouds.yaml`
   * `C:\ProgramData\openstack\clouds.yaml`
 
 E.g.
@@ -76,11 +74,14 @@ clouds:
     region_name: nz-hlz-1
 ```
 
-Run os-mfa
+Set `$OS_CLOUD` in your environment.
 
 ```bash
 $ export OS_CLOUD=catalystcloud
 ```
+
+Run `os-mfa`
+
 ```bash
 $ os-mfa
 Authenticating 'john.smith@example.com' in project 'john-smith'
@@ -100,7 +101,7 @@ $ openstack network list
 +--------------------------------------+------------+--------------------------------------------+
 ```
 
-If you close/restart or start a new terminal window, resume your openstack session simply by exporting `$OS_CLOUD` again.
+Now if you close/restart or start a new terminal window, resume your existing OpenStack session simply by exporting `$OS_CLOUD` again.
 
 ```bash
 export OS_CLOUD=catalystcloud
@@ -108,18 +109,18 @@ export OS_CLOUD=catalystcloud
 
 ## What happened when we ran os-mfa?
 
-os-mfa created a *"long-term"* configuration without any passwords or secrets.
+The first time we run os-mfa is creates a *"long-term"* configuration in our clouds.yaml without any passwords or secrets.
 
- * *"long-term"* configurations are distinguished with a suffix of `-long-term`
- * We do not use the long term configs with the openstack client tools.
- 
-The long term config used as a foundation for authentication by os-mfa which then:
+Long term configurations contain the minimum information required for os-mfa to use to initialize a token based authentication.
 
-1) Prompts the user for their password and totp token
+ * They should *not* contain any secrets such as tokens or passwords.
+ * They are distinguished by a suffix of `-long-term`
 
-2) Swaps the password and totp for an openstack auth token
+os-mfa will then use the `-long-term` configuration to create a token based configuration as follows.
 
-3) Updates the original configuration to use the new token for authentication
+ 1. Prompts the user for their password and MFA code
+ 2. Swaps the password and MFA code for an OpenStack auth token
+ 3. Updates the original configuration to use the new token for authentication
 
 The resulting clouds.yaml should look like this
 
@@ -150,18 +151,25 @@ clouds:
 
 ## Going further
 
+### Multiple projects, users and sessions
 
-### Switching between multiple cloud accounts and sessions
+
+Since clouds.yaml supports multiple configurations, you can create configurations for any combination of
+
+ * user
+ * project
+ * region
+ * openstack cloud
 
 ```yaml
 clouds:
-  project1-long-term:
+  project1:
     region: nz-hlz-1
     auth:
         project_name: project1
         username: john.smith@acme.com
         # ...
-  project2-long-term:
+  project2:
     region: nz-por-1
     auth:
         project_name: project2
@@ -169,10 +177,12 @@ clouds:
         # ...
 ```
 
-After running os-mfa once for each project you can switch between them 
+After initializing a token based authentication for each configuration using os-mfa, you can change between sessions at will
 
-```
+```bash
 OS_CLOUD=project1
+```
+```bash
 OS_CLOUD=project2
 ```
 
@@ -191,8 +201,9 @@ python -m unittest discover
 Source: https://realpython.com/pypi-publish-python-package/
 
 ```
-python -m pip install pip-tools build twine bumpver
+python -m pip install pip-tools twine
 pip-compile pyproject.toml
+rm -rf dist/*
 python -m build
 twine check dist/*
 twine upload -r testpypi dist/*
@@ -204,9 +215,8 @@ twine upload dist/*
  * ☑️ TBH I am probably going to port this back to python
  * ☑️ Alert if no clouds.yaml found
  * ☑️ Better error message if OS_CLOUD not set
- * ☑️ CI/CD
- * 🟦 Non-interactive mode
- * 🟦 Sanitize long-term config better
+ * 🟦 CI/CD
  * 🟦 Store and check expiry of token
-    * 🟦 Only reauthenticate if token is not valid
-    * 🟦 -f, --force cli option to force authentication
+ * 🟦 Only reauthenticate if token is not valid
+ * 🟦 -f, --force cli option to force authentication
+ * 🟦 more unit and integration tests
