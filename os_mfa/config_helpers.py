@@ -1,16 +1,14 @@
 import os
 import platform
 import json
-import sys
 import copy
-
-import yaml
 
 from pathlib import Path
 
 from getpass import getpass
 
 import requests
+import yaml
 
 PASSWORD = None
 
@@ -97,6 +95,10 @@ def get_token(auth: dict, secret: str) -> str:
             }
         ),
     )
+
+    if r.ok:
+        print("Success")
+
     return r.headers.get("x-subject-token")
 
 

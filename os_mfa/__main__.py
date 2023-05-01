@@ -42,6 +42,7 @@ def main():
 
     # Create long term config if it doesn't exist
     if not manager.config_exists(long_term_config_name):
+        print("Creating config: {}".format(long_term_config_name))
         default_config = manager.get_config_by_name(os_cloud)
         long_term_config = create_long_term_config(default_config)
         manager.put_config_by_name(long_term_config_name, long_term_config)
