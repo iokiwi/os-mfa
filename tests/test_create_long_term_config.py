@@ -1,6 +1,6 @@
 import unittest
 
-from os_mfa.config_helpers import create_long_term_config
+from os_mfa.clouds_configs import create_long_term_config
 
 
 class TestCreateLongTermConfig(unittest.TestCase):

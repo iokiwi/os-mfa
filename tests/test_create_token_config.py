@@ -1,6 +1,6 @@
 import unittest
 
-from os_mfa.config_helpers import create_token_config
+from os_mfa.clouds_configs import create_token_config
 
 
 class TestCreateLongTermConfig(unittest.TestCase):

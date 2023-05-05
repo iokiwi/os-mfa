@@ -1,14 +1,13 @@
 import os
 import platform
-import json
 import copy
 
 from pathlib import Path
 
 from getpass import getpass
-
-import requests
 import yaml
+
+from .tokens import *
 
 PASSWORD = None
 
@@ -66,40 +65,9 @@ class ConfigManager:
         self.save_config(full_config)
 
     def get_config_by_name(self, name) -> dict:
-        config = self.load_config()
-        cloud = config["clouds"].get(name, dict())
-        return cloud
-
-
-def get_token(auth: dict, secret: str) -> str:
-    # Note: we shouldn't assume v3
-    url = "{}/{}".format(auth["auth_url"], "/v3/auth/tokens")
-    r = requests.post(
-        url,
-        headers={"Content-Type": "application/json"},
-        data=json.dumps(
-            {
-                "auth": {
-                    "identity": {
-                        "methods": ["password"],
-                        "password": {
-                            "user": {
-                                "name": auth["username"],
-                                "domain": {"name": auth["user_domain_name"]},
-                                "password": secret,
-                            }
-                        },
-                    },
-                    "scope": {"project": {"id": auth["project_id"]}},
-                }
-            }
-        ),
-    )
-
-    if r.ok:
-        print("Success")
-
-    return r.headers.get("x-subject-token")
+        full_config = self.load_config()
+        config = full_config["clouds"].get(name, dict())
+        return config
 
 
 def create_long_term_config(config: dict) -> dict:
@@ -107,20 +75,13 @@ def create_long_term_config(config: dict) -> dict:
 
     global PASSWORD
 
-    config = copy.deepcopy(config)
+    contents = copy.deepcopy(config)
 
-    # username = config["auth"].get("username")
-    # if username is None:
-    #     save = input("Would you like to save your username? [Y/n]").strip()
-    #     if save == "" or save.lower().startswith("y"):
-    #         username = input("Username:").strip()
-    #         config["auth"]["username"]
+    if "auth_type" in contents:
+        del contents["auth_type"]
 
-    if "auth_type" in config:
-        del config["auth_type"]
-
-    if "token" in config["auth"]:
-        del config["auth"]["token"]
+    if "token" in contents["auth"]:
+        del contents["auth"]["token"]
 
     if "password" in config["auth"]:
         PASSWORD = config["auth"]["password"]
@@ -142,6 +103,7 @@ def create_token_config(long_term_config: dict, token: str) -> dict:
     return token_config
 
 
+# TODO: This method has gotten really unweildy
 def get_token_config(config: dict) -> dict:
     """takes a long-term-config and generates a token based config"""
 
@@ -149,11 +111,34 @@ def get_token_config(config: dict) -> dict:
 
     username = config["auth"].get("username")
     if username is None:
+        print(
+            "Please enter your username for project '{}'".format(
+                config["auth"]["project_name"]
+            )
+        )
         username = input("Username: ").strip()
-        # save = input("Would you like to save your username for next time? [y/N]: ").strip()
-        # if save == "" or save.lower().startswith("y"):
-        #     # Do something
-        #     pass
+        config["auth"]["username"] = username
+        print(
+            "Specify a value for auth.username in the long-term configuration to suppress this prompt in the future."
+        )
+
+    user_domain_name = config["auth"].get("user_domain_name")
+    if user_domain_name is None:
+        print(
+            "Please provide a user_domain_name for user '{}' in project '{}' or press enter to accept the default.".format(
+                username, config["auth"].get("project_name")
+            )
+        )
+        user_domain_name = input('User Domain Name ["Default"]: ').strip()
+
+        if user_domain_name == "":
+            print('Using default value for user_domain_name: "Default"')
+            user_domain_name = "Default"
+
+        config["auth"]["user_domain_name"] = user_domain_name
+        print(
+            "Specify a value for auth.user_domain_name in the long-term configuration to suppress this prompt in the future."
+        )
 
     print(
         "Authenticating '{}' in project '{}'".format(
@@ -172,4 +157,10 @@ def get_token_config(config: dict) -> dict:
 
     print("Getting token...")
     token = get_token(config["auth"], password)
-    return create_token_config(config, token)
+
+    token_expiry = isoparse(token["details"]["token"]["expires_at"]).astimezone(
+        tz.tzlocal()
+    )
+    print("Token issued. Expires: {}".format(token_expiry))
+
+    return create_token_config(config, token["token"])

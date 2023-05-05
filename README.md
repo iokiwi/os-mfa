@@ -216,6 +216,7 @@ twine upload dist/*
  * ☑️ Alert if no clouds.yaml found
  * ☑️ Better error message if OS_CLOUD not set
  * 🟦 CI/CD
+ * 🟦 Optionally disable prompt for MFA token
  * 🟦 Store and check expiry of token
  * 🟦 Only reauthenticate if token is not valid
  * 🟦 -f, --force cli option to force authentication

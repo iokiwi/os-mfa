@@ -2,7 +2,8 @@ import sys
 import os
 from argparse import ArgumentParser
 
-from .config_helpers import *
+from .clouds_configs import *
+from .tokens import *
 
 
 def main():
@@ -40,7 +41,7 @@ def main():
         )
         sys.exit(1)
 
-    # Create long term config if it doesn't exist
+    # Create a long-term config if it doesn't exist
     if not manager.config_exists(long_term_config_name):
         print("Creating config: {}".format(long_term_config_name))
         default_config = manager.get_config_by_name(os_cloud)
@@ -50,6 +51,7 @@ def main():
     # Create token based config from long term config
     long_term_config = manager.get_config_by_name(long_term_config_name)
     token_config = get_token_config(long_term_config)
+    print("The '{}' config has been updated.".format(os_cloud))
     manager.put_config_by_name(os_cloud, token_config)
 
 
