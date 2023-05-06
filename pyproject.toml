@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "os-mfa"
-version = "0.0.2"
+version = "0.4.0"
 description = "A minimal utility for managing cli authentication with openstack more securely and conveniently"
 readme = "README.md"
 authors = [{ name = "Simon Merrick", email = "s.m3rrick@gmail.com" }]
@@ -17,7 +17,8 @@ classifiers = [
 keywords = ["openstack", "mfa", "auth"]
 dependencies = [
     "requests",
-    "PyYaml"
+    "PyYaml",
+    "python-dateutil"
 ]
 requires-python = ">= 3.6"
 
@@ -41,6 +42,7 @@ push = true
 [tool.bumpver.file_patterns]
 "pyproject.toml" = [
     'current_version = "{version}"',
+    'version = "{version}"'
 ]
 "os_mfa/__init__.py" = [
     "{version}"

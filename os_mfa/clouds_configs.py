@@ -7,6 +7,8 @@ from pathlib import Path
 from getpass import getpass
 import yaml
 
+from dateutil import tz
+
 from .tokens import *
 
 PASSWORD = None
@@ -158,9 +160,10 @@ def get_token_config(config: dict) -> dict:
     print("Getting token...")
     token = get_token(config["auth"], password)
 
-    token_expiry = isoparse(token["details"]["token"]["expires_at"]).astimezone(
-        tz.tzlocal()
-    )
+    token_expiry = parse_token_expiry(
+        token["details"]["token"]
+    ).astimezone(tz.tzlocal())
+
     print("Token issued. Expires: {}".format(token_expiry))
 
     return create_token_config(config, token["token"])

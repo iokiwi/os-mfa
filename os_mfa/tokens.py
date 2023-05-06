@@ -1,4 +1,5 @@
 import json
+import sys
 
 from datetime import datetime
 from dateutil.parser import isoparse
@@ -6,6 +7,10 @@ from dateutil import tz
 from urllib.parse import urlparse
 
 import requests
+
+
+def parse_token_expiry(token: dict) -> datetime:
+    return isoparse(token["expires_at"])
 
 
 def utc_to_local(timestamp: datetime) -> datetime:
@@ -42,6 +47,7 @@ def get_token(auth: dict, secret: str) -> str:
     )
 
     if not r.ok:
-        print(r.text())
+        print("Unable to authenticate using the credentials provided.")
+        sys.exit(1)
 
     return {"token": r.headers.get("x-subject-token"), "details": r.json()}
