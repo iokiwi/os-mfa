@@ -47,6 +47,9 @@ def main():
         default_config = manager.get_config_by_name(os_cloud)
         long_term_config = create_long_term_config(default_config)
         manager.put_config_by_name(long_term_config_name, long_term_config)
+    else:
+        # TODO: Check if current token is expired,
+        pass
 
     # Create token based config from long term config
     long_term_config = manager.get_config_by_name(long_term_config_name)

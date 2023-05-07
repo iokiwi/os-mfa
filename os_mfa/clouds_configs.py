@@ -85,11 +85,11 @@ def create_long_term_config(config: dict) -> dict:
     if "token" in contents["auth"]:
         del contents["auth"]["token"]
 
-    if "password" in config["auth"]:
-        PASSWORD = config["auth"]["password"]
-        del config["auth"]["password"]
+    if "password" in contents["auth"]:
+        PASSWORD = contents["auth"]["password"]
+        del contents["auth"]["password"]
 
-    return config
+    return contents
 
 
 def create_token_config(long_term_config: dict, token: str) -> dict:
@@ -105,54 +105,60 @@ def create_token_config(long_term_config: dict, token: str) -> dict:
     return token_config
 
 
-# TODO: This method has gotten really unweildy
-def get_token_config(config: dict) -> dict:
+def prompt_username(config) -> str:
+    print(
+        "Please enter your username for project '{}'".format(
+            config["auth"]["project_name"]
+        )
+    )
+    username = input("Username: ").strip()
+    config["auth"]["username"] = username
+    print(
+        "Specify a value for auth.username in the long-term configuration to suppress this prompt in the future."
+    )
+
+
+def prompt_user_domain_name(config) -> str:
+    print(
+        "Please provide a user_domain_name for user '{}' in project '{}' or press enter to accept the default.".format(
+            config["auth"].get("username"), config["auth"].get("project_name")
+        )
+    )
+    user_domain_name = input('User Domain Name ["Default"]: ').strip()
+    if user_domain_name == "":
+        print('Using default value for user_domain_name: "Default"')
+        user_domain_name = "Default"
+    print(
+        "Specify a value for auth.user_domain_name in the long-term configuration to suppress this prompt in the future."
+    )
+    return user_domain_name
+
+def prompt_password(config, password=PASSWORD):
+    print(
+        "Authenticating '{}' in project '{}'".format(
+            config["auth"]["username"], config["auth"]["project_name"]
+        )
+    )
+    return getpass(f"Enter Password: ")
+
+# TODO: This method has gotten really unwieldy
+def get_token_config(config: dict, password=PASSWORD) -> dict:
     """takes a long-term-config and generates a token based config"""
 
     config = copy.deepcopy(config)
 
     username = config["auth"].get("username")
     if username is None:
-        print(
-            "Please enter your username for project '{}'".format(
-                config["auth"]["project_name"]
-            )
-        )
-        username = input("Username: ").strip()
-        config["auth"]["username"] = username
-        print(
-            "Specify a value for auth.username in the long-term configuration to suppress this prompt in the future."
-        )
+        username = prompt_username(config)
+    config["auth"]["username"] = username
 
     user_domain_name = config["auth"].get("user_domain_name")
     if user_domain_name is None:
-        print(
-            "Please provide a user_domain_name for user '{}' in project '{}' or press enter to accept the default.".format(
-                username, config["auth"].get("project_name")
-            )
-        )
-        user_domain_name = input('User Domain Name ["Default"]: ').strip()
-
-        if user_domain_name == "":
-            print('Using default value for user_domain_name: "Default"')
-            user_domain_name = "Default"
-
+        user_domain_name = prompt_user_domain_name(config)
         config["auth"]["user_domain_name"] = user_domain_name
-        print(
-            "Specify a value for auth.user_domain_name in the long-term configuration to suppress this prompt in the future."
-        )
 
-    print(
-        "Authenticating '{}' in project '{}'".format(
-            username, config["auth"]["project_name"]
-        )
-    )
-
-    # Prompt for password unless we already have it from converting to long-term config
-    if PASSWORD is None:
-        password = getpass(f"Enter Password: ")
-    else:
-        password = PASSWORD
+    if password is None:
+        password = prompt_password(config)
 
     totp = input("MFA Code (Press enter to skip): ").strip()
     password = password + totp
