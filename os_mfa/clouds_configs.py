@@ -1,17 +1,12 @@
-import os
-import platform
 import copy
-
 from pathlib import Path
-
 from getpass import getpass
-import yaml
 
+import yaml
 from dateutil import tz
+from openstack.config.loader import OpenStackConfig
 
 from .tokens import *
-
-PASSWORD = None
 
 
 class ConfigManager:
@@ -20,28 +15,16 @@ class ConfigManager:
         self.config = dict()
 
     @classmethod
+    def get_config_dirs(cls) -> list:
+        osc = OpenStackConfig()
+        return [path for path in osc._config_files if path.endswith("yaml") or path.endswith("yml")]
+
+    @classmethod
     def find_openstack_config_file(cls) -> Path:
-        current_dir = Path.cwd()
-        user_home = Path.home()
-        user_dir = user_home / ".config" / "openstack"
-
-        if platform.system() == "Windows":
-            system_dir = Path("C:/ProgramData/openstack")
-        else:
-            system_dir = Path("/etc/openstack")
-
-        search_dirs = [current_dir, user_dir, system_dir]
-
-        override_dir = os.environ.get("OS_CLIENT_CONFIG_FILE")
-        if override_dir:
-            search_dirs.insert(0, override_dir)
-
-        for search_dir in search_dirs:
-            for filename in ["clouds.yml", "clouds.yaml"]:
-                p = search_dir / filename
-                if p.exists():
-                    return p
-
+        search_paths = ConfigManager.get_config_dirs()
+        for f in search_paths:
+            if Path(f).exists():
+                return f
         raise FileNotFoundError("Could not find a clouds.yml or clouds.yaml")
 
     def load_config(self) -> dict:
@@ -75,21 +58,20 @@ class ConfigManager:
 def create_long_term_config(config: dict) -> dict:
     """takes a config and returns a long term config with no secrets"""
 
-    global PASSWORD
+    password = None
+    long_term_config = copy.deepcopy(config)
 
-    contents = copy.deepcopy(config)
+    if "auth_type" in long_term_config:
+        del long_term_config["auth_type"]
 
-    if "auth_type" in contents:
-        del contents["auth_type"]
+    if "token" in long_term_config["auth"]:
+        del long_term_config["auth"]["token"]
 
-    if "token" in contents["auth"]:
-        del contents["auth"]["token"]
+    if "password" in long_term_config["auth"]:
+        password = long_term_config["auth"]["password"]
+        del long_term_config["auth"]["password"]
 
-    if "password" in contents["auth"]:
-        PASSWORD = contents["auth"]["password"]
-        del contents["auth"]["password"]
-
-    return contents
+    return (long_term_config, password)
 
 
 def create_token_config(long_term_config: dict, token: str) -> dict:
@@ -133,7 +115,8 @@ def prompt_user_domain_name(config) -> str:
     )
     return user_domain_name
 
-def prompt_password(config, password=PASSWORD):
+
+def prompt_password(config):
     print(
         "Authenticating '{}' in project '{}'".format(
             config["auth"]["username"], config["auth"]["project_name"]
@@ -141,8 +124,9 @@ def prompt_password(config, password=PASSWORD):
     )
     return getpass(f"Enter Password: ")
 
+
 # TODO: This method has gotten really unwieldy
-def get_token_config(config: dict, password=PASSWORD) -> dict:
+def get_token_config(config: dict, password=None) -> dict:
     """takes a long-term-config and generates a token based config"""
 
     config = copy.deepcopy(config)
@@ -161,15 +145,15 @@ def get_token_config(config: dict, password=PASSWORD) -> dict:
         password = prompt_password(config)
 
     totp = input("MFA Code (Press enter to skip): ").strip()
-    password = password + totp
+    auth_secret = password + totp
 
     print("Getting token...")
-    token = get_token(config["auth"], password)
+    token = get_token(config, auth_secret)
 
-    token_expiry = parse_token_expiry(
-        token["details"]["token"]
-    ).astimezone(tz.tzlocal())
+    token_expiry = parse_token_expiry(token["details"]["token"]).astimezone(
+        tz.tzlocal()
+    )
 
     print("Token issued. Expires: {}".format(token_expiry))
-
+    token = get_token(config, auth_secret)
     return create_token_config(config, token["token"])

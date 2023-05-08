@@ -18,7 +18,8 @@ keywords = ["openstack", "mfa", "auth"]
 dependencies = [
     "requests",
     "PyYaml",
-    "python-dateutil"
+    "python-dateutil",
+    "openstacksdk"
 ]
 requires-python = ">= 3.6"
 

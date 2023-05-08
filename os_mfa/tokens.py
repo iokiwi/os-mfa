@@ -1,11 +1,9 @@
 import json
 import sys
-
 from datetime import datetime
+from urllib.parse import urlparse
 from dateutil.parser import isoparse
 from dateutil import tz
-from urllib.parse import urlparse
-
 import requests
 
 
@@ -18,9 +16,9 @@ def utc_to_local(timestamp: datetime) -> datetime:
     return timestamp.astimezone(local_tz)
 
 
-def get_token(auth: dict, secret: str) -> str:
-    # Ensure URL is in consistent format.
-    # NOTE: v3 is probably an okayish assumption but technically we shouldn't assume
+def get_token(config: dict, secret: str) -> str:
+    auth = config["auth"]
+
     parsed_url = urlparse(auth["auth_url"])
     url = "{}://{}/{}".format(parsed_url.scheme, parsed_url.netloc, "v3/auth/tokens")
 

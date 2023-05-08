@@ -200,7 +200,7 @@ python -m unittest discover
 
 Source: https://realpython.com/pypi-publish-python-package/
 
-```
+```bash
 python -m pip install pip-tools twine
 pip-compile pyproject.toml
 rm -rf dist/*
@@ -216,8 +216,14 @@ twine upload dist/*
  * ☑️ Alert if no clouds.yaml found
  * ☑️ Better error message if OS_CLOUD not set
  * 🟦 CI/CD
+ * 🟦 Build script and twine config file
  * 🟦 Optionally disable prompt for MFA token
  * 🟦 Store and check expiry of token
  * 🟦 Only reauthenticate if token is not valid
  * 🟦 -f, --force cli option to force authentication
- * 🟦 more unit and integration tests
+ * 🟦 More unit and integration tests
+ * 🟦 End to end tests in docker.
+ * ☑️ Utilize OpenstackSDK for getting a list of config file locations
+ * 🟦 Utilize OpenstackSDK for requesting/checking tokens
+ * 🟦 Handle project_id vs. project_name + project_domain_name
+ * 🟦 Handle user_id vs. username + user_domain_name

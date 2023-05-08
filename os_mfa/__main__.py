@@ -20,6 +20,8 @@ def main():
     # )
     args = parser.parse_args()
 
+    password = None
+
     os_cloud = args.os_cloud or os.environ.get("OS_CLOUD")
 
     if os_cloud is None:
@@ -45,7 +47,7 @@ def main():
     if not manager.config_exists(long_term_config_name):
         print("Creating config: {}".format(long_term_config_name))
         default_config = manager.get_config_by_name(os_cloud)
-        long_term_config = create_long_term_config(default_config)
+        long_term_config, password = create_long_term_config(default_config)
         manager.put_config_by_name(long_term_config_name, long_term_config)
     else:
         # TODO: Check if current token is expired,
@@ -53,7 +55,7 @@ def main():
 
     # Create token based config from long term config
     long_term_config = manager.get_config_by_name(long_term_config_name)
-    token_config = get_token_config(long_term_config)
+    token_config = get_token_config(long_term_config, password=password)
     print("The '{}' config has been updated.".format(os_cloud))
     manager.put_config_by_name(os_cloud, token_config)
 
