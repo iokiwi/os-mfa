@@ -2,8 +2,7 @@ import sys
 import os
 from argparse import ArgumentParser
 
-from .clouds_configs import *
-from .tokens import *
+from .clouds_configs import ConfigManager, create_long_term_config, get_token_config
 
 
 def main():

@@ -24,7 +24,7 @@ dependencies = [
 requires-python = ">= 3.6"
 
 [project.optional-dependencies]
-dev = ["black", "bumpver", "pip-tools", "twine", "build", "mypy"]
+dev = ["black", "bumpver", "pip-tools", "twine", "build", "mypy", "flake8"]
 
 [project.urls]
 Homepage = "https://github.com/iokiwi/os-mfa"

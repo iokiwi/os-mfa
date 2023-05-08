@@ -6,7 +6,7 @@ import yaml
 from dateutil import tz
 from openstack.config.loader import OpenStackConfig
 
-from .tokens import *
+from .tokens import get_token, parse_token_expiry
 
 
 class ConfigManager:
@@ -17,7 +17,11 @@ class ConfigManager:
     @classmethod
     def get_config_dirs(cls) -> list:
         osc = OpenStackConfig()
-        return [path for path in osc._config_files if path.endswith("yaml") or path.endswith("yml")]
+        return [
+            path
+            for path in osc._config_files
+            if path.endswith("yaml") or path.endswith("yml")
+        ]
 
     @classmethod
     def find_openstack_config_file(cls) -> Path:
@@ -96,22 +100,29 @@ def prompt_username(config) -> str:
     username = input("Username: ").strip()
     config["auth"]["username"] = username
     print(
-        "Specify a value for auth.username in the long-term configuration to suppress this prompt in the future."
+        "Specify a value for auth.username in the long-term "
+        "configuration to suppress this prompt in the future."
     )
 
 
 def prompt_user_domain_name(config) -> str:
+    message = (
+        "Please provide a user_domain_name for user '{}' in "
+        "project '{}' or press enter to accept the default."
+    )
     print(
-        "Please provide a user_domain_name for user '{}' in project '{}' or press enter to accept the default.".format(
+        message.format(
             config["auth"].get("username"), config["auth"].get("project_name")
         )
     )
+
     user_domain_name = input('User Domain Name ["Default"]: ').strip()
     if user_domain_name == "":
         print('Using default value for user_domain_name: "Default"')
         user_domain_name = "Default"
     print(
-        "Specify a value for auth.user_domain_name in the long-term configuration to suppress this prompt in the future."
+        "Specify a value for auth.user_domain_name in the long-term"
+        "configuration to suppress this prompt in the future."
     )
     return user_domain_name
 
@@ -122,7 +133,7 @@ def prompt_password(config):
             config["auth"]["username"], config["auth"]["project_name"]
         )
     )
-    return getpass(f"Enter Password: ")
+    return getpass("Enter Password: ")
 
 
 # TODO: This method has gotten really unwieldy

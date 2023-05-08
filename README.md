@@ -190,6 +190,16 @@ OS_CLOUD=project2
 
 Nothing special to report, just raise a PR
 
+```bash
+python3 -m venv venv
+```
+
+Install dependencies including dev dependencies detailed
+
+```bash
+pip install -e .[dev]
+```
+
 ### Run tests
 
 ```
