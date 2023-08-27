@@ -1,6 +1,6 @@
 import unittest
 
-from os_mfa.clouds_configs import create_long_term_config
+from os_mfa.clouds_configs import get_sanitized_config
 
 
 class TestCreateLongTermConfig(unittest.TestCase):
@@ -21,8 +21,8 @@ class TestCreateLongTermConfig(unittest.TestCase):
             "region_name": "nz-hlz-1",
         }
 
-    def test_create_long_term_config(self):
-        long_term_config = create_long_term_config(self.config)
+    def test_get_sanitized_config(self):
+        long_term_config = get_sanitized_config(self.config)
         self.assertFalse("password" in long_term_config["auth"])
         self.assertFalse("token" in long_term_config["auth"])
         self.assertFalse("auth_type" in long_term_config)

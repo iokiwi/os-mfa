@@ -2,7 +2,7 @@ import sys
 import os
 from argparse import ArgumentParser
 
-from .clouds_configs import ConfigManager, create_long_term_config, get_token_config
+from .clouds_configs import ConfigFileManager, get_sanitized_config, get_token_config
 
 
 def main():
@@ -29,8 +29,8 @@ def main():
 
     long_term_config_name = "{}-long-term".format(os_cloud)
 
-    config_path = ConfigManager.find_openstack_config_file()
-    manager = ConfigManager(config_path)
+    config_path = ConfigFileManager.find_openstack_config_file()
+    manager = ConfigFileManager(config_path)
 
     if not (
         manager.config_exists(long_term_config_name) or manager.config_exists(os_cloud)
@@ -46,7 +46,8 @@ def main():
     if not manager.config_exists(long_term_config_name):
         print("Creating config: {}".format(long_term_config_name))
         default_config = manager.get_config_by_name(os_cloud)
-        long_term_config, password = create_long_term_config(default_config)
+
+        long_term_config = get_sanitized_config(default_config)
         manager.put_config_by_name(long_term_config_name, long_term_config)
     else:
         # TODO: Check if current token is expired,
@@ -54,7 +55,7 @@ def main():
 
     # Create token based config from long term config
     long_term_config = manager.get_config_by_name(long_term_config_name)
-    token_config = get_token_config(long_term_config, password=password)
+    token_config = get_token_config(long_term_config)
     print("The '{}' config has been updated.".format(os_cloud))
     manager.put_config_by_name(os_cloud, token_config)
 

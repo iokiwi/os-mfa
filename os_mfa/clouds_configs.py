@@ -3,43 +3,58 @@ from pathlib import Path
 from getpass import getpass
 
 import yaml
-from dateutil import tz
+
+
 from openstack.config.loader import OpenStackConfig
 
-from .tokens import get_token, parse_token_expiry
+from .tokens import get_token, Token
+
+from typing import Dict, List, Any
 
 
-class ConfigManager:
+class Config:
+    def __init__(self, name: str, properties: Dict[str, Any]):
+        self.name = name
+        self.properties = properties
+
+
+class ConfigFileManager:
     def __init__(self, config_path: str):
         self.config_path = config_path
-        self.config = dict()
+        self.config = None
 
     @classmethod
-    def get_config_dirs(cls) -> list:
+    def get_config_dirs(cls) -> List[Path]:
         osc = OpenStackConfig()
         return [
-            path
+            Path(path)
             for path in osc._config_files
             if path.endswith("yaml") or path.endswith("yml")
         ]
 
     @classmethod
     def find_openstack_config_file(cls) -> Path:
-        search_paths = ConfigManager.get_config_dirs()
+        """Find the clouds.yaml file
+
+        :returns: Path to clouds.yaml
+        :throws: FileNotFoundError
+        """
+
+        search_paths = ConfigFileManager.get_config_dirs()
         for f in search_paths:
-            if Path(f).exists():
+            if f.exists():
                 return f
         raise FileNotFoundError("Could not find a clouds.yml or clouds.yaml")
 
-    def load_config(self) -> dict:
-        if self.config:
+    def load_config(self) -> Dict[str, Any]:
+        if self.config is not None:
             return self.config
 
         with open(self.config_path, "r") as f:
             self.config = yaml.safe_load(f)
             return self.config
 
-    def save_config(self, config):
+    def save_config(self, config: Dict[str, Any]):
         with open(self.config_path, "w") as f:
             yaml.dump(config, f)
             self.config = config
@@ -48,123 +63,116 @@ class ConfigManager:
         config = self.load_config()
         return name in config["clouds"]
 
-    def put_config_by_name(self, name: str, config: dict):
+    def put_config_by_name(self, name: str, config: Config) -> bool:
         full_config = self.load_config()
-        full_config["clouds"][name] = config
+        full_config["clouds"][name] = config.properties
         self.save_config(full_config)
+        return True
 
-    def get_config_by_name(self, name) -> dict:
+    def get_config_by_name(self, name: str) -> Config:
+        """ Returns a config by name
+            :throws: KeyError if config is not found
+        """
         full_config = self.load_config()
-        config = full_config["clouds"].get(name, dict())
-        return config
+        properties = full_config["clouds"][name]
+        return Config(name, properties)
 
 
-def create_long_term_config(config: dict) -> dict:
-    """takes a config and returns a long term config with no secrets"""
+def get_sanitized_config(config: Config) -> Config:
+    """Takes a config and returns a sanitized config without secrets"""
 
-    password = None
-    long_term_config = copy.deepcopy(config)
+    sanitized_config = copy.deepcopy(config)
 
-    if "auth_type" in long_term_config:
-        del long_term_config["auth_type"]
+    if "auth_type" in sanitized_config.properties:
+        del sanitized_config.properties["auth_type"]
 
-    if "token" in long_term_config["auth"]:
-        del long_term_config["auth"]["token"]
+    if "token" in sanitized_config.properties["auth"]:
+        del sanitized_config.properties["auth"]["token"]
 
-    if "password" in long_term_config["auth"]:
-        password = long_term_config["auth"]["password"]
-        del long_term_config["auth"]["password"]
+    if "password" in sanitized_config.properties["auth"]:
+        del sanitized_config.properties["auth"]["password"]
 
-    return (long_term_config, password)
+    return sanitized_config
 
 
-def create_token_config(long_term_config: dict, token: str) -> dict:
-    token_config = copy.deepcopy(long_term_config)
+def create_token_config(config: Config, token: Token) -> Config:
+    token_config = copy.deepcopy(config)
 
-    token_config["auth_type"] = "token"
-    token_config["auth"]["token"] = token
+    token_config.properties["auth_type"] = "token"
+    token_config.properties["auth"]["token"] = token.value
 
     for k in ["username", "password", "user_domain_name"]:
-        if k in token_config["auth"]:
-            del token_config["auth"][k]
+        if k in token_config.properties["auth"]:
+            del token_config.properties["auth"][k]
 
     return token_config
 
 
-def prompt_username(config) -> str:
-    print(
-        "Please enter your username for project '{}'".format(
-            config["auth"]["project_name"]
-        )
-    )
+def prompt_username(config: Config) -> str:
+    auth = config.properties["auth"]
+    print("Please enter your username for project '{}'".format(auth["project_name"]))
     username = input("Username: ").strip()
-    config["auth"]["username"] = username
     print(
-        "Specify a value for auth.username in the long-term "
-        "configuration to suppress this prompt in the future."
+        "Specify a value for {}.auth.username in your clouds.yaml "
+        "to suppress this prompt in the future.".format(config.name)
     )
+    return username
 
 
-def prompt_user_domain_name(config) -> str:
+def prompt_user_domain_name(config: Config) -> str:
     message = (
         "Please provide a user_domain_name for user '{}' in "
         "project '{}' or press enter to accept the default."
     )
     print(
         message.format(
-            config["auth"].get("username"), config["auth"].get("project_name")
+            config.properties["auth"].get("username"),
+            config.properties["auth"].get("project_name"),
         )
     )
-
     user_domain_name = input('User Domain Name ["Default"]: ').strip()
     if user_domain_name == "":
         print('Using default value for user_domain_name: "Default"')
         user_domain_name = "Default"
     print(
-        "Specify a value for auth.user_domain_name in the long-term"
-        "configuration to suppress this prompt in the future."
+        "Specify a value for {}.auth.user_domain_name in the long-term"
+        "configuration to suppress this prompt in the future.".format(config.name)
     )
     return user_domain_name
 
 
-def prompt_password(config):
+def prompt_password(config: Config) -> str:
+    auth = config.properties["auth"]
     print(
         "Authenticating '{}' in project '{}'".format(
-            config["auth"]["username"], config["auth"]["project_name"]
+            auth["username"], auth["project_name"]
         )
     )
     return getpass("Enter Password: ")
 
 
-# TODO: This method has gotten really unwieldy
-def get_token_config(config: dict, password=None) -> dict:
-    """takes a long-term-config and generates a token based config"""
+def get_token_config(config: Config) -> Config:
+    """Takes a long-term-config and generates a token based config"""
 
     config = copy.deepcopy(config)
 
-    username = config["auth"].get("username")
+    username = config.properties["auth"].get("username")
     if username is None:
         username = prompt_username(config)
-    config["auth"]["username"] = username
+    config.properties["auth"]["username"] = username
 
-    user_domain_name = config["auth"].get("user_domain_name")
+    user_domain_name = config.properties["auth"].get("user_domain_name")
     if user_domain_name is None:
         user_domain_name = prompt_user_domain_name(config)
-        config["auth"]["user_domain_name"] = user_domain_name
+        config.properties["auth"]["user_domain_name"] = user_domain_name
 
-    if password is None:
-        password = prompt_password(config)
-
+    password = prompt_password(config)
     totp = input("MFA Code (Press enter to skip): ").strip()
     auth_secret = password + totp
 
     print("Getting token...")
-    token = get_token(config, auth_secret)
+    token = get_token(config.properties["auth"], auth_secret)
 
-    token_expiry = parse_token_expiry(token["details"]["token"]).astimezone(
-        tz.tzlocal()
-    )
+    print("Token issued. Expires: {}".format(token.expires_at))
 
-    print("Token issued. Expires: {}".format(token_expiry))
-    token = get_token(config, auth_secret)
-    return create_token_config(config, token["token"])
+    return create_token_config(config, token)
